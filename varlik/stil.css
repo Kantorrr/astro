@@ -1,0 +1,1611 @@
+/* ------------------------------------------------------------------
+   MediAstro — görsel dil
+   Ruzname mantığı: rulo, iki mürekkep, cetvel çizgileri, çizelge.
+   Kart yok. Degrade yok. Gölge yok. Yıldız serpintisi yok.
+   ------------------------------------------------------------------ */
+
+:root {
+  --bosluk-xs:  4px;
+  --bosluk-s:   8px;
+  --bosluk-m:  16px;
+  --bosluk-l:  26px;
+  --bosluk-xl: 34px;   /* bölümler arası */
+
+  --oran-en:  0.4621;  /* 390 / 844 */
+  --oran-boy: 2.1641;
+
+  --sure-kisa: 200ms;
+  --sure-orta: 380ms;
+  --sure-uzun: 520ms;
+  --egri: cubic-bezier(0.22, 0.8, 0.28, 1);
+}
+
+/* --- Üç tema: düzen değişmez, yalnızca renk değişir --- */
+
+/* --soluk üç kez koyulaştırıldı: 3.3 → 5.0 → 7.3 → 8.8. Her seferinde
+   ekranda hâlâ "silik" duruyordu. Sebebi şu: bu renk yalnızca yardımcı
+   metinde değil, 10–12px etiketlerde ve dipnotlarda kullanılıyor ve ana
+   metin 15:1'de duruyor — arada 10 kat fark varsa göz ikincisini
+   "sönük" okuyor. Hedef: ana metnin yarısından koyu kalmamak. */
+
+.tema-sabah {
+  --zemin:  #F7F3EA;
+  --metin:  #201E1A;
+  --soluk:  #4B4338;   /* 8.8:1 */
+  --vurgu:  #A5522C;
+  --cetvel: #D5CBB8;
+  --ay-dolu: #C4B393;
+  --gorsel: #E7E0D2;   /* prototipte fotoğrafın yerini tutan ton */
+}
+
+.tema-ikindi {
+  --zemin:  #F0E4D4;
+  --metin:  #29221E;
+  --soluk:  #4A3F35;   /* 8.2:1 */
+  --vurgu:  #9B3F22;
+  --cetvel: #C9B394;
+  --ay-dolu: #C0A276;
+  --gorsel: #E0D0BB;
+}
+
+/* ADAY — ikindi'nin gerçekten batıya çekilmiş hali.
+   Mevcut ikindi sabahtan ayırt edilemiyordu: ikisi de açık krem.
+   Burada zemin fark edilir şekilde koyulaşıp kızarıyor. */
+.tema-ikindi2 {
+  --zemin:  #EBD5BC;
+  --metin:  #2B201A;
+  --soluk:  #4A3B2C;
+  --vurgu:  #8E3216;
+  --cetvel: #C4A57F;
+  --ay-dolu: #BE9A66;
+  --gorsel: #DCC5A6;
+}
+
+/* ADAY — ikindi, sarı yerine GÜL tarafına.
+   ikindi2'nin sorunu: sabah zaten parşömen (sıcak, sarımsı). Üstüne sarı
+   eklemek yeni bir şey söylemiyor, "sarı filtre" hissi veriyor.
+   Gerçek gün batımı sarı değil gül/mor: ufuk kızarır, gölgeler morlaşır.
+   Burada sarı azaltılıp pembeye kaydırıldı — fark edilir ama filtre değil. */
+.tema-ikindi3 {
+  --zemin:  #EFDCD4;
+  --metin:  #2C1F1D;
+  --soluk:  #4E3A35;
+  --vurgu:  #97341F;
+  --cetvel: #D2B5A9;
+  --ay-dolu: #C09C8C;
+  --gorsel: #E2C7BC;
+}
+
+
+
+
+
+/* Gece — ERİK / MOR-SİYAH.
+   Lacivert bu kategorinin bir numaralı klişesi; her astroloji ve
+   meditasyon uygulaması aynı rengi kullanıyor. Denendi, elendi.
+
+   Buradaki fikir renk değil dizi: sabah parşömen (sarı-krem) →
+   ikindi gül → gece erik. Renk çemberinde düzenli dönüyor, üç tema
+   üç ayrı karar olmaktan çıkıp tek bir hikâye anlatıyor — ışık önce
+   sararıyor, sonra kızarıyor, sonra derinleşiyor.
+   Bakır vurgu erik üstünde laciverde göre çok daha sıcak yanıyor. */
+.tema-gece {
+  --zemin:  #1E1720;
+  --metin:  #F0E7E9;
+  --soluk:  #BCAFB6;   /* 8.3:1 */
+  --vurgu:  #DFA079;
+  --cetvel: #3B2E3D;
+  --ay-dolu: #B9A7B4;
+  --gorsel: #2C222E;
+}
+
+/* --- Kabuk --- */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #14110E;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'DM Sans', -apple-system, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Sabit genişlik kipi: ölçekleme kapalı, gerçek cihaz pikseli.
+   Pencereye sığmazsa yüksekliği kısalır ama genişlik hiç değişmez —
+   sıkışmayı görebilmek için genişliğin bozulmaması şart. */
+.telefon.sabit {
+  width: var(--en);
+  height: min(var(--boy), calc(100vh - 40px));
+  border-radius: 44px;
+}
+
+/* Gerçek telefon oranı korunur; yüksekliğe göre küçülür. */
+.telefon {
+  --en: min(390px, calc((100vh - 40px) * var(--oran-en)), calc(100vw - 24px));
+  width: var(--en);
+  height: calc(var(--en) * var(--oran-boy));
+  border-radius: calc(var(--en) * 0.113);
+  overflow: hidden;
+  position: relative;   /* hikâye katmanı buna göre yerleşiyor */
+  background: var(--zemin);
+  color: var(--metin);
+  transition: background var(--sure-orta) var(--egri),
+              color var(--sure-orta) var(--egri);
+}
+
+.ekran {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  padding: 0 24px;
+  display: flex;
+  flex-direction: column;
+  animation: ekranAcil 280ms var(--egri);
+}
+
+/* Yapışkan şerit yalnızca Astroloji'de var. Diğer sayfalarda üst boşluğu
+   burası veriyor — TEK KAYNAK. Bölümlerin kendi üst dolgularıyla tek tek
+   uğraşılmıyor; "üstte çok/az boşluk var" denince değişecek tek satır bu. */
+.ekran:not(.ekran-astroloji) { padding-top: 26px; }
+
+/* Sayfa kısa olduğunda alt menüyü aşağı iter; uzun olduğunda yer kaplamaz. */
+.dolgu { flex: 1 0 var(--bosluk-xl); }
+@keyframes ekranAcil { from { opacity: 0; } }
+.ekran::-webkit-scrollbar { display: none; }
+
+/* --- Üst şerit: tarih + gerçek ay evresi (imza detay) --- */
+
+.serit {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--zemin);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  /* Yalnızca burç adını taşıyor; olabildiğince ince. */
+  padding: 6px 0 4px;
+}
+
+/* Kimlik yukarı kayınca burç adı üst şeritte belirir. */
+.serit-orta {
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 17px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--sure-kisa) var(--egri);
+}
+.serit.kaydi .serit-orta { opacity: 1; }
+
+/* Ay: aydınlık yüz zeminden belirgin şekilde ayrılmalı, yoksa şekli okunmuyor.
+   Çember her zaman tam daireyi çiziyor — gölgede kalan taraf da belli oluyor. */
+.ay-isik   { fill: var(--ay-dolu); }
+.ay-golge  { fill: var(--zemin); }
+.ay-cember { fill: none; stroke: var(--soluk); stroke-width: 1.1; }
+
+
+/* --- Retro uyarı şeridi ---
+   Soldaki hardal çubuk hangi alana dokunduğunu söylüyor (para & iş) —
+   takvimdeki renklerin aynısı. */
+
+.retro {
+  display: flex;
+  gap: 9px;
+  align-items: baseline;
+  border-left: 2px solid var(--f-para);
+  padding: 2px 0 2px 11px;
+  margin-top: 2px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--soluk);
+}
+.retro b { color: var(--vurgu); font-weight: 400; white-space: nowrap; }
+
+/* --- Kimlik alanı: harita çarkı + burç --- */
+
+.kimlik {
+  text-align: center;
+  padding: 14px 0 22px;
+  transform-origin: top center;
+  will-change: transform, opacity;
+}
+
+.carka {
+  width: 98%;
+  display: block;
+  margin: 0 auto 4px;
+  overflow: visible;
+}
+
+/* Çizgi kalınlıkları kademeli — hepsi aynı olursa çark cılız görünür. */
+.c-dis    { fill: none; stroke: var(--soluk); stroke-width: 1; }
+.c-orta   { fill: none; stroke: var(--cetvel); stroke-width: 1; }
+.c-ince   { fill: none; stroke: var(--cetvel); stroke-width: 0.7; }
+.c-centik { stroke: var(--cetvel); stroke-width: 0.7; }
+.c-kose   { stroke: var(--soluk); stroke-width: 1.1; }
+.c-aci    { stroke: var(--cetvel); stroke-width: 0.8; }
+
+/* Açı renkleri — astrolojide evrensel ayrım: üçgen/altmışlık akıcı,
+   kare/karşıt gergin. Çarkın ortası tek renk olunca anlamsız bir ağdı. */
+.c-aci-akici  { stroke: var(--e-su);   stroke-width: 1; }
+.c-aci-gergin { stroke: var(--e-ates); stroke-width: 1; }
+
+.c-ev     { fill: var(--soluk); font-size: 11px; text-anchor: middle;
+            font-family: 'DM Sans', sans-serif; }
+.c-uc     { fill: var(--soluk); font-size: 9px; text-anchor: middle;
+            letter-spacing: 0.1em; font-family: 'DM Sans', sans-serif; }
+
+.c-gezegen { fill: var(--metin); font-size: 21px; text-anchor: middle;
+             font-family: 'EB Garamond', Georgia, serif; }
+.c-derece  { fill: var(--soluk); font-size: 10px; text-anchor: middle;
+             font-family: 'DM Sans', sans-serif; }
+.c-halka   { fill: var(--zemin); stroke: none; }
+.c-alan    { fill: transparent; }
+
+.gz { cursor: pointer; }
+.gz .c-gezegen,
+.gz .c-halka { transition: fill var(--sure-kisa) var(--egri); }
+.gz.c-one .c-gezegen { fill: var(--vurgu); }
+
+.gz.secili .c-halka   { fill: var(--vurgu); }
+.gz.secili .c-gezegen { fill: var(--zemin); }
+.gz.secili .c-derece  { fill: var(--vurgu); }
+.gz:focus { outline: none; }
+
+/* Gezegenler her zaman tam belirgin. Seçileni ayıran şey solma değil,
+   bakır dolgusu — böylece diğerleri okunaklılığından hiçbir şey kaybetmiyor. */
+
+.cizelge tr.secili td { color: var(--vurgu); }
+
+/* Çarkın okuması — dokunulanın karşılığı hemen altında görünür,
+   kullanıcı aşağı inmek zorunda kalmaz. */
+.okuma {
+  min-height: 20px;
+  margin: 10px 0 18px;
+  font-size: 13px;
+  color: var(--metin);
+}
+.okuma b {
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 17px;
+  font-weight: 400;
+  color: var(--vurgu);
+  margin-right: 3px;
+}
+.okuma i { font-style: normal; color: var(--vurgu); }
+.okuma-ipucu { font-size: 11.5px; color: var(--soluk); }
+
+.kimlik-etiket {
+  font-size: 10.5px;
+  letter-spacing: 0.2em;
+  color: var(--soluk);
+  margin-bottom: 8px;
+}
+
+.kimlik-burc {
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 29px;
+  line-height: 1;
+  font-weight: 400;
+}
+
+/* Ay ve yükselen: tam genişlikte tabloya yayılınca değerler uzakta kalıyordu.
+   Etiket ve değer yan yana, ortalanmış iki küme. */
+.ikili {
+  display: flex;
+  justify-content: center;
+  gap: 26px;
+  margin-top: 16px;
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 16px;
+}
+.ikili .el { margin-right: 5px; }
+.ikili i {
+  font-family: 'DM Sans', sans-serif;
+  font-style: normal;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--soluk);
+  margin-right: 5px;
+}
+
+/* --- Cetvel ve bölümler --- */
+
+.cetvel { border: 0; border-top: 1px solid var(--cetvel); }
+
+/* Ana bölümler cetvelle ayrılır. Bölüm içindeki satırlarda çizgi yok —
+   çizgi kalabalığı oradan geliyordu. */
+.bolum {
+  padding-top: var(--bosluk-m);
+  margin-top: var(--bosluk-xl);
+  border-top: 1px solid var(--cetvel);
+}
+
+.etiket {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: var(--soluk);
+  margin-bottom: 12px;
+}
+
+/* --- Çizelge: kart değil, tablo --- */
+
+.cizelge {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.cizelge td { padding: 5px 0; vertical-align: baseline; }
+.cizelge .im {
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 15px;
+  width: 22px;
+}
+.cizelge .ad     { color: var(--soluk); width: 32%; }
+.cizelge .sag    { text-align: right; color: var(--soluk); }
+.cizelge .koyu   { color: var(--metin); }
+.cizelge .isaret { color: var(--vurgu); }
+.cizelge .sayi   { color: var(--vurgu); }
+
+/* Rengin adını yazıp rengini göstermemek tuhaftı. */
+.renk-ornek {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  margin-right: 7px;
+}
+
+/* --- Metin --- */
+
+.soz {
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 17px;
+  line-height: 1.45;
+}
+.soz .vurgu { color: var(--vurgu); }
+
+.govde {
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--metin);
+  margin-top: 10px;
+}
+
+.yan { display: flex; gap: 14px; align-items: flex-start; }
+.yan .ay { flex-shrink: 0; margin-top: 2px; }
+
+/* Gerçek ölçüm satırı */
+.olcum {
+  font-size: 12px;
+  color: var(--soluk);
+  margin-top: 5px;
+}
+
+/* --- Açılır detay --- */
+
+.ac {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--soluk);
+  cursor: pointer;
+  transition: color var(--sure-kisa) var(--egri);
+}
+.ac:hover { color: var(--metin); }
+.ac::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-right: 1px solid var(--soluk);
+  border-bottom: 1px solid var(--soluk);
+  transform: rotate(45deg) translate(-2px, -2px);
+  transition: transform var(--sure-orta) var(--egri),
+              border-color var(--sure-kisa) var(--egri);
+}
+
+/* Açılma: yükseklik yumuşakça büyür, metin ardından belirir.
+   İkisi ayrı zamanlamada — hepsi aynı anda olursa "şak" diye açılmış hissi verir.
+   Yükseklik JS ile ölçülüp piksel olarak veriliyor; tarayıcı bağımlı
+   grid hilesine güvenilmiyor. */
+.detay {
+  height: 0;
+  overflow: hidden;
+  transition: height var(--sure-uzun) var(--egri);
+}
+/* Boşluk dolgu (padding) ile veriliyor, dış boşluk (margin) ile değil.
+   Margin, kapsayıcının dışına taşıp yükseklik ölçümünü şaşırtıyor. */
+.detay > div {
+  padding-top: 13px;
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity var(--sure-orta) var(--egri),
+              transform var(--sure-orta) var(--egri);
+}
+.detay.acik > div {
+  opacity: 1;
+  transform: none;
+  transition-delay: 140ms;
+}
+.detay .govde { margin: 0; }
+
+/* --- Açılabilir çizelge satırı: çin, numeroloji --- */
+
+/* Üç kademeli hiyerarşi: küçük etiket → serif başlık → açıklama.
+   Üçü de farklı boyut, ağırlık ve renkte olmalı; yoksa birbirine karışır. */
+.satir { cursor: pointer; padding-top: 22px; }
+.satir:first-of-type { padding-top: 0; }
+.satir .etiket {
+  margin-bottom: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Açılabilir olduğunu söyleyen ok. Hazır ikon seti değil — iki çizgi. */
+.ok {
+  width: 6px;
+  height: 6px;
+  border-right: 1px solid var(--soluk);
+  border-bottom: 1px solid var(--soluk);
+  transform: rotate(45deg) translate(-2px, -2px);
+  transition: transform var(--sure-orta) var(--egri),
+              border-color var(--sure-kisa) var(--egri);
+}
+.satir.acik .ok,
+.ac.acik::after {
+  transform: rotate(225deg) translate(-2px, -2px);
+  border-color: var(--vurgu);
+}
+
+.satir-deger {
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 19px;
+  line-height: 1.15;
+  color: var(--metin);
+  transition: color var(--sure-kisa) var(--egri);
+}
+.satir.acik .satir-deger { color: var(--vurgu); }
+
+.satir-ozet {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--soluk);
+  margin-top: 7px;
+}
+.satir + .detay > div { padding-top: 10px; }
+
+/* --- Rehber --- */
+
+/* Faaliyet renkleri — anlam taşıyor, süs değil.
+   Üç temada da okunacak orta tonlar seçildi. */
+/* Element renkleri — yalnızca Astroloji'de kullanılır, faaliyet
+   renkleriyle çakışmaz. Dört element astrolojinin en temel
+   sınıflandırması; renk burada da öğretiyor. */
+:root {
+  --e-ates:   #B4472E;
+  --e-toprak: #6E7A4A;
+  --e-hava:   #9A7F2E;
+  --e-su:     #46708C;
+}
+
+:root {
+  --f-beden:  #C2664A;
+  --f-para:   #B8942F;
+  --f-iliski: #B4678B;
+  --f-yol:    #6B9670;
+  --f-ic:     #837AAE;
+}
+
+/* Hafta şeridi — Rehber'in üstünde, takvimin kısa hali */
+.hafta {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0 0;
+}
+/* Sabit genişlik yerine pay: 320px ekranda yedi kutu sıkışıyordu.
+   Flutter'daki karşılığı Expanded. */
+.hafta-gun {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 7px 0 6px;
+  border-radius: 17px;
+  color: var(--soluk);
+}
+.hafta-gun > i { font-style: normal; font-size: 10px; letter-spacing: 0.06em; }
+.hafta-gun b {
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1;
+}
+.hafta-gun.etkin { background: var(--vurgu); color: var(--zemin); }
+.hafta-gun.etkin { border-radius: 17px; }
+.hafta .tk-izler em { display: inline-block; width: 6px; height: 3px; border-radius: 2px; }
+
+.ay-baglanti {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--soluk);
+  text-decoration: none;
+}
+.ok.sag { transform: rotate(-45deg) translate(-1px, -1px); }
+.ok.sol { transform: rotate(135deg) translate(-1px, -1px); }
+
+.geri {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 12px;
+  color: var(--soluk);
+  text-decoration: none;
+}
+
+/* Takvim tek ekrana sığmalı — kaydırma bütünlüğü bozuyor. */
+h1.takvim-ay {
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 19.5px;
+  font-weight: 400;
+  color: var(--metin);
+  margin: 6px 0 12px;
+}
+
+.takvim {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px 0;
+}
+.tk-baslik {
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--soluk);
+  text-align: center;
+  padding-bottom: 8px;
+}
+.tk-gun {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 0 6px;
+  border-radius: 11px;
+  background: none;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: background var(--sure-kisa) var(--egri),
+              color var(--sure-kisa) var(--egri);
+}
+.tk-gun b {
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 19px;
+  font-weight: 400;
+  line-height: 1;
+}
+.tk-gun.etkin { background: var(--vurgu); color: var(--zemin); }
+.tk-gun:focus { outline: none; }
+
+.tk-izler { display: flex; gap: 2px; height: 4px; }
+
+.iz {
+  display: inline-block;
+  width: 8px;
+  height: 4px;
+  border-radius: 2px;
+}
+.iz-beden  { background: var(--f-beden); }
+.iz-para   { background: var(--f-para); }
+.iz-iliski { background: var(--f-iliski); }
+.iz-yol    { background: var(--f-yol); }
+.iz-ic     { background: var(--f-ic); }
+
+/* Günün dokunduğu alanlar — takvimdeki renklerin kelimeyle karşılığı.
+   Aynı şerit Astroloji, Rehber ve Yolculuk'ta duruyor: üç ekran da aynı
+   günden bahsettiğini böyle söylüyor. Lejanta gitmeye gerek kalmıyor. */
+.kume-serit {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 12px;
+}
+.kume-rozet {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--soluk);
+}
+.kume-rozet .iz { width: 11px; }
+
+/* Element ve açı işaretleri — faaliyet izleriyle aynı boyut ve mantık,
+   ama yuvarlak: biri "alan", öteki "nitelik" gösteriyor. */
+.el {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 7px;
+  vertical-align: 1px;
+}
+.el-ates   { background: var(--e-ates); }
+.el-toprak { background: var(--e-toprak); }
+.el-hava   { background: var(--e-hava); }
+.el-su     { background: var(--e-su); }
+
+.ac-iz {
+  display: inline-block;
+  width: 12px;
+  height: 1.5px;
+  vertical-align: 4px;
+}
+.ac-akici  { background: var(--e-su); }
+.ac-gergin { background: var(--e-ates); }
+
+.lejant.orta { justify-content: center; gap: 18px; margin-top: 6px; }
+
+.lejant {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 12px;
+  margin-top: 14px;
+}
+.lejant-oge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--soluk);
+}
+.lejant-oge .iz { width: 10px; }
+
+/* Küme başlığı ve faaliyet listesi — hepsi aynı tonda olunca birbirine
+   giriyordu. Başlık renkli işaretle ayrılıyor, durum sütunu isme yaklaştırıldı. */
+.kume-baslik {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
+  color: var(--soluk);
+  margin: 24px 0 6px;
+}
+.kume-baslik .iz { width: 12px; }
+
+.cizelge.liste td { padding: 6px 0; }
+.cizelge.liste .isim  { color: var(--metin); width: 60%; }
+.cizelge.liste .durum { text-align: left; font-size: 11.5px; }
+
+/* --- Faaliyet listesi: "bunu ne zaman yapmalıyım" ----------------------
+   Ay ızgarası "bu ay neler var" sorusuna cevap veriyor; bu liste tek bir
+   soruya. Kart yok — satır ve ince çizgi, uygulamanın geri kalanı gibi.
+   ---------------------------------------------------------------------- */
+
+.fa-satir {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--cetvel);
+}
+.fa-ad { font-size: 13px; color: var(--metin); }
+.fa-satir.acik .fa-ad { color: var(--vurgu); }
+
+/* Hafta bugünden başlıyor, pazartesiden değil: karar penceresi bugün.
+   Pazartesiden başlarsa çarşamba açan kullanıcı iki günü boşa görüyor. */
+.fa-hafta {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0 2px;
+}
+.fa-gun {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  flex: 1 1 0;
+  min-width: 0;
+  color: var(--soluk);
+}
+.fa-gun > i { font-style: normal; font-size: 10px; letter-spacing: 0.06em; }
+.fa-gun b {
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1;
+}
+.fa-gun.bugun b { color: var(--vurgu); }
+
+/* Üç durum, üç ayrı biçim — renge ek olarak şekil de fark ediyor ki
+   renk körlüğünde de okunsun. */
+.fa-im {
+  display: block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+.fa-uygun     { background: var(--f-yol); }
+.fa-ertele    { background: none; border: 1px solid var(--vurgu); }
+.fa-farketmez { width: 3px; height: 3px; background: var(--cetvel); margin: 2px 0; }
+
+.fa-yok {
+  font-size: 11.5px;
+  color: var(--soluk);
+  margin-top: 12px;
+}
+.fa-yok b { color: var(--vurgu); font-weight: 400; }
+
+.fa-lejant { margin-top: 20px; gap: 6px 16px; }
+.fa-lejant .lejant-oge { gap: 7px; }
+
+.yaprak-ust { padding-top: 16px; }
+
+/* Maddeler: soldaki renkli çubuk maddenin hangi alana ait olduğunu söyler —
+   takvimdeki çizgilerle aynı renk. Böylece ekran tek bir metin şeridi
+   olmaktan çıkıp ritim kazanıyor.
+   Ertelenecek başlıklar bakır: ruzname'nin iki mürekkep mantığı. */
+.madde {
+  display: grid;
+  grid-template-columns: 3px 1fr;
+  gap: 14px;
+  padding-top: 18px;
+}
+.madde:first-of-type { padding-top: 0; }
+
+.cubuk { border-radius: 2px; margin-top: 3px; }
+.cubuk-beden  { background: var(--f-beden); }
+.cubuk-para   { background: var(--f-para); }
+.cubuk-iliski { background: var(--f-iliski); }
+.cubuk-yol    { background: var(--f-yol); }
+.cubuk-ic     { background: var(--f-ic); }
+
+.madde-baslik {
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 18px;
+  line-height: 1.2;
+}
+.madde.ters .madde-baslik { color: var(--vurgu); }
+
+.madde-not {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--soluk);
+  margin-top: 4px;
+}
+
+/* Günün özeti — altındaki bölümlerden ayrılsın diye daha iri ve tek satır. */
+.yaprak-ust { padding-top: 18px; }
+.yaprak-ust .soz { font-size: 20px; }
+.yaprak-ust .govde { font-size: 13.5px; margin-top: 8px; }
+
+/* Astrolojik dayanak — başlık değil dipnot. Merak eden okur, etmeyen atlar. */
+.dayanak {
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  color: var(--soluk);
+  margin-top: 12px;
+}
+
+.etiket.kume { margin: 22px 0 8px; }
+.detay .etiket.kume:first-child { margin-top: 4px; }
+
+.durum-uygun     { color: var(--metin); }
+.durum-ertele    { color: var(--vurgu); }
+.durum-farketmez { color: var(--soluk); }
+
+/* --- Yolculuk -------------------------------------------------------
+   Yatay raf yok. Ekran "ne izlesem" değil "nerede kaldım" sorusunu
+   cevapladığı için düzen bir katalog değil, dikey bir yol.
+   Kapak görseli de yok — ayırt eden şey ad ve süre.
+   -------------------------------------------------------------------- */
+
+.suren { padding-top: 2px; }
+.suren-seri {
+  font-size: 12px;
+  color: var(--soluk);
+  margin-bottom: 6px;
+}
+.suren .soz { font-size: 19.5px; }
+.suren .dayanak { margin-top: 8px; }
+
+/* Bugüne denk düşen bölüm — Astroloji ve Rehber'le aynı düzen:
+   önce ne, sonra neden. Astroloji terimi başlıkta değil dipnotta. */
+.denk-satir {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.denk-ad {
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 17px;
+  line-height: 1.25;
+}
+.denk-sure { margin-left: auto; font-size: 11px; color: var(--soluk); }
+.denk .yol-ozet { margin-top: 6px; }
+.denk .dayanak { margin-top: 9px; }
+
+/* Yolun kendisi: duraklar alt alta, aralarında tek çizgi.
+   İlerlemeyi anlatan şey yüzde ya da rozet değil — kaç durağın
+   geride kaldığının görünmesi. */
+.yol { list-style: none; }
+
+.durak { position: relative; padding: 11px 0; }
+
+.durak-ust {
+  display: grid;
+  grid-template-columns: 11px 1fr auto;
+  gap: 14px;
+  align-items: start;
+}
+
+/* Bağlantı çizgisi işaretlerin merkezinden geçer; ilk ve son durakta
+   yarıda kesilir, yoksa yol boşluğa doğru uzuyormuş gibi duruyor. */
+.durak::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--cetvel);
+}
+.durak:first-child::before { top: 19px; }
+.durak:last-child::before  { bottom: calc(100% - 19px); }
+
+.durak .isaret {
+  position: relative;
+  width: 11px;
+  height: 11px;
+  margin-top: 3px;
+  border-radius: 50%;
+  border: 1px solid var(--cetvel);
+  background: var(--zemin);
+}
+.durak-bitti .isaret { background: var(--soluk); border-color: var(--soluk); }
+.durak-simdi .isaret { background: var(--vurgu); border-color: var(--vurgu); }
+
+.durak-ad {
+  font-size: 13.5px;
+  line-height: 1.35;
+  color: var(--metin);
+}
+/* Bitenler geri çekilir, bulunulan durak öne çıkar. */
+.durak-bitti .durak-ad { color: var(--soluk); }
+.durak-simdi .durak-ad {
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 17px;
+  color: var(--vurgu);
+  line-height: 1.15;
+}
+
+.durak-sure {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--soluk);
+  padding-top: 3px;
+}
+
+/* Açılan içerik durak adıyla hizalanır — işaret sütununun altına kaymaz,
+   yoksa yolun çizgisiyle çakışıyor. */
+.detay.girintili > div { padding-left: 25px; }
+
+/* Diğer yolculuklar — yine dikey liste. Durum tek kelimeyle sağda. */
+.yol-oge { padding-top: 24px; }
+.yol-oge:first-of-type { padding-top: 0; }
+
+.yol-satir {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
+  align-items: baseline;
+}
+
+/* Rehber'in .madde-baslik'i (19px) burada kullanılmıştı ve hiyerarşiyi
+   ters çeviriyordu: ikincil liste, üstteki asıl durağın önüne geçiyordu.
+   Bu bölüm gözün en son gideceği yer — o yüzden bir kademe küçük. */
+.yol-ad {
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 16px;
+  line-height: 1.25;
+}
+.yol-ozet {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--soluk);
+  margin-top: 3px;
+}
+
+.yol-durum {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--soluk);
+  white-space: nowrap;
+}
+.yol-durum.tam { color: var(--vurgu); }
+
+/* Basılabilir satırlar. Dokunulduğunda ayrı sayfaya gitmiyor,
+   yerinde açılıyor — kaydırma yeri kaybolmasın diye. */
+.basmali { cursor: pointer; }
+.basmali .ok { flex-shrink: 0; }
+.basmali.acik .ok {
+  transform: rotate(225deg) translate(-2px, -2px);
+  border-color: var(--vurgu);
+}
+.basmali.acik .durak-ad,
+.basmali.acik .yol-ad { color: var(--vurgu); }
+
+.cizelge .isim { width: 70%; }
+
+/* --- Keşfet ---------------------------------------------------------
+   Fotoğraf çerçevelenmiyor: kart, gölge, yuvarlak köşe yok; görsel
+   ekranın iki kenarına dayanıyor (belge 6.9d).
+
+   Punto burada bilerek küçük. Diğer ekranlarda serif iri kullanılıyor
+   çünkü orada tek cümle var; akışta yedi gönderi alt alta geliyor ve
+   iri punto bağırıyor. Tipografi geri çekiliyor, fotoğraf konuşuyor.
+   -------------------------------------------------------------------- */
+
+/* Hikâyeler. Instagram'ın renkli degrade halkası bu dile hiç uymuyor:
+   halka bakırsa izlenmemiş, cetvel rengindeyse izlenmiş. Tek fark bu. */
+/* flex-shrink: 0 şart. .ekran bir flex sütun; overflow'u görünür olmayan
+   çocuklarının en küçük boyutu 0'a düşebiliyor ve bu şerit tamamen
+   eziliyordu — ekranda hiç görünmüyordu. */
+.hikayeler {
+  flex-shrink: 0;
+  display: flex;
+  gap: 13px;
+  margin: 0 -24px;
+  /* Metin sütununun 24px'i burada fazla geliyordu: dairenin görsel
+     ağırlık merkezi kenarına değil ortasına düşüyor, şerit sağa
+     kaymış gibi duruyor. Sola daha yakın başlıyor. */
+  padding: 2px 16px 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.hikayeler::-webkit-scrollbar { display: none; }
+
+.hikaye {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 56px;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+/* Halka rengi kişinin o gün ne paylaştığını söylüyor — takvimdeki
+   faaliyet renklerinin aynısı. Instagram'ın degrade halkası yerine
+   anlam taşıyan tek renk. İzlenince cetvel grisine düşüyor. */
+.hikaye-halka {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 2px solid var(--cetvel);
+  display: block;
+  overflow: hidden;
+  transition: border-color var(--sure-kisa) var(--egri);
+}
+.hikaye.yeni .hikaye-halka { border-color: var(--k, var(--vurgu)); }
+
+/* İzlenmemişte halka da içi de renkli; izlenince ikisi birden renkten
+   çıkıyor. Tek işaretle (yalnızca halka) fark yeterince okunmuyordu. */
+.hikaye-ic {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: var(--gorsel);
+  transition: background var(--sure-orta) var(--egri);
+}
+.hikaye.yeni .hikaye-ic {
+  background: color-mix(in srgb, var(--k, var(--vurgu)) 22%, var(--gorsel));
+}
+/* "sen" halkasındaki artı — hazır ikon değil, iki çizgi. */
+.arti { position: relative; width: 11px; height: 11px; }
+.arti::before, .arti::after {
+  content: '';
+  position: absolute;
+  background: var(--soluk);
+}
+.arti::before { left: 5px; top: 0; width: 1px; height: 100%; }
+.arti::after  { top: 5px; left: 0; height: 1px; width: 100%; }
+
+.hikaye-ad {
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--soluk);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hikaye.yeni .hikaye-ad { color: var(--metin); }
+
+/* Hikâye katmanı. Telefonun içini tamamen kaplıyor — .ekran'ın değil
+   .telefon'un çocuğu olduğu için kaydırmayla birlikte hareket etmiyor.
+   Zemin gece temasının rengi: hikâye hangi temada açılırsa açılsın
+   fotoğrafın etrafı koyu olmalı, yoksa görsel zeminde eriyor. */
+.hikaye-katman {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: #171C2B;
+  color: #EFEBE3;
+  display: flex;
+  flex-direction: column;
+  animation: hkAcil var(--sure-orta) var(--egri);
+}
+.hikaye-katman[hidden] { display: none; }
+@keyframes hkAcil { from { opacity: 0; transform: scale(0.985); } }
+
+/* İlerleme çubukları — kaç kare olduğunu ve nerede olduğunu söyleyen
+   tek şey bunlar. Kıl kadar ince kalmalı; kalın çubuk ekranın üstüne
+   bir arayüz parçası koyuyor, oysa hikâyede hiçbir şey fotoğrafla
+   yarışmamalı.
+
+   Yükseklik hem kapta hem dolguda piksel olarak sabitlendi. Yüzde ve
+   mutlak konum kullanıldığında dolan çubuk diğerlerinden kalın
+   görünüyordu — 1.5px'te yuvarlanma hatası.
+
+   Dolum `width` ile değil `transform` ile: genişlik animasyonu her
+   karede yeniden yerleşim hesaplattırıyor, scaleX yalnızca çiziyor.
+   Süre JS'ten geliyor, keyframe yok. */
+.hk-cubuklar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 16px 16px 0;
+}
+.hk-cubuk {
+  flex: 1 1 0;
+  height: 2px;
+  border-radius: 0;
+  background: rgba(239, 235, 227, 0.22);
+}
+.hk-cubuk i {
+  display: block;
+  width: 100%;
+  height: 2px;
+  background: #EFEBE3;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0s linear;
+}
+.hk-cubuk.gecti i { transform: scaleX(1); }
+
+.hk-ust {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  padding: 12px 16px 0;
+}
+.hk-ad {
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 14px;
+}
+.hk-ad .imzali { display: inline-block; margin-left: 6px; background: #E0A26F; }
+.hk-zaman { font-size: 10.5px; color: #9AA1B5; }
+
+.hk-kapat {
+  margin-left: auto;
+  background: none;
+  border: 0;
+  padding: 4px;
+  cursor: pointer;
+}
+.hk-kapat:focus { outline: none; }
+/* Çarpı da hazır ikon değil, iki çizgi. */
+.capraz { position: relative; display: block; width: 13px; height: 13px; }
+.capraz::before, .capraz::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  background: #EFEBE3;
+}
+.capraz::before { transform: rotate(45deg); }
+.capraz::after  { transform: rotate(-45deg); }
+
+.hk-kare {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 24px 40px;
+}
+.hk-gorsel {
+  margin: 0 -24px;
+  aspect-ratio: 4 / 5;
+  background: #232A3E;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  color: #9AA1B5;
+}
+.hk-metin {
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 18px;
+  line-height: 1.45;
+  margin-top: 20px;
+}
+/* Yazı karesinde fotoğraf yok, cümle ekranın ortasında tek başına durur. */
+.hk-kare.yalniz .hk-metin { font-size: 21px; margin-top: 0; }
+
+/* Dokunma alanları: sol üçte bir geri, kalanı ileri. Instagram'ın
+   yerleşimi — öğrenilmesi gerekmiyor, kullanıcı zaten biliyor. */
+.hk-yarim {
+  position: absolute;
+  top: 60px;
+  bottom: 0;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.hk-yarim:focus { outline: none; }
+.hk-yarim.sol { left: 0;  width: 33%; }
+.hk-yarim.sag { right: 0; width: 67%; }
+
+.suzgec {
+  display: flex;
+  gap: 20px;
+  padding: 20px 0 2px;
+}
+.suzgec-oge {
+  font-size: 11.5px;
+  color: var(--soluk);
+  padding-bottom: 5px;
+  border-bottom: 1px solid transparent;
+  cursor: pointer;
+  transition: color var(--sure-kisa) var(--egri),
+              border-color var(--sure-kisa) var(--egri);
+}
+.suzgec-oge.etkin { color: var(--vurgu); border-bottom-color: var(--vurgu); }
+
+.gonderi {
+  margin-top: var(--bosluk-l);
+  padding-top: var(--bosluk-m);
+  border-top: 1px solid var(--cetvel);
+}
+/* İlk gönderide üstteki cetvel yok; onun yerini tutan boşluğa da gerek
+   yok. Diğerlerinde 26+16 = 42px doğru (çizgiyi iki yandan besliyor),
+   burada süzgecin hemen altına düşüyordu. */
+.gonderi:first-of-type {
+  border-top: 0;
+  margin-top: 18px;
+  padding-top: 0;
+}
+
+.gonderi-ust {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin-bottom: 10px;
+}
+.gonderi-kisi {
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 14px;
+}
+.imzali {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--vurgu);
+  align-self: center;
+}
+.gonderi-ust .kume-rozet { margin-left: auto; font-size: 10px; }
+.gonderi-ust .kume-rozet + .gonderi-zaman { margin-left: 12px; }
+.gonderi-zaman { margin-left: auto; font-size: 10.5px; color: var(--soluk); }
+
+/* Kenarlara dayanmıyor: telefon çerçevesine yapışan fotoğraf kesilmiş
+   gibi duruyordu. Metin sütunuyla aynı hizada — kart değil, hizalı blok. */
+.gorsel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--gorsel);
+}
+/* Gönderinin kümesi fotoğrafa hafif bir renk veriyor. Prototipe özel:
+   gerçek fotoğraf geldiğinde rengi zaten fotoğrafın kendisi taşıyacak. */
+.gorsel.renkli {
+  background: color-mix(in srgb, var(--k) 15%, var(--gorsel));
+}
+/* Prototip yer tutucusu. Gerçek görsel gelince bu satır silinecek. */
+.gorsel span {
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  color: var(--soluk);
+  opacity: 0.75;
+}
+
+ /* Fotoğrafın dibinden başlayan metin "sonradan yapıştırılmış" duruyordu.
+    Görsel keskin bitiyor; yazının ondan ayrıldığı belli olmalı. */
+.gonderi-gorsel .gonderi-govde { padding-top: 16px; }
+.gonderi-alt { display: none; }
+
+.gonderi-metin {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--metin);
+}
+
+/* Alıntının fotoğrafı yok, kendi başına ayakta durması gerekiyor —
+   akıştaki tek iri punto bu, o yüzden de öne çıkıyor. */
+.alinti {
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 15.5px;
+  line-height: 1.5;
+  padding-left: 13px;
+  border-left: 1px solid var(--vurgu);
+}
+
+/* Gönderinin hangi alana değdiği — Rehber ve takvimdeki renklerin aynısı.
+   Yazı soluk, işaret renkli: 10px metni renklendirmek kontrastı düşürürdü. */
+.gonderi-alt { margin-top: 10px; }
+.gonderi-alt .kume-rozet { font-size: 10px; }
+
+.eylem {
+  display: flex;
+  gap: 18px;
+  margin-top: 13px;
+}
+.eylem-oge {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--soluk);
+  cursor: pointer;
+  transition: color var(--sure-kisa) var(--egri);
+}
+.eylem-oge b { font-weight: 400; }
+.eylem-oge.sag { margin-left: auto; }
+.eylem-oge:hover { color: var(--metin); }
+.eylem-oge:focus { outline: none; }
+.eylem-oge.secili { color: var(--vurgu); }
+
+/* --- Ben ------------------------------------------------------------
+   Ayar listesi değil künye. Ruzname'nin ilk yaprağı:
+   "bu takvim kimin için hazırlandı".
+   -------------------------------------------------------------------- */
+
+/* Bu sayfa satır listelerinden oluşuyor; bölüm arası boşluk Astroloji'deki
+   kadar geniş olunca ekran dağılıyor, satırlar birbirinden kopuyor. */
+.ekran-ben .bolum,
+.ekran-uyum .bolum { margin-top: var(--bosluk-l); padding-top: 14px; }
+
+.kunye { padding-top: 0; }
+
+.kunye-ad {
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 23px;
+  line-height: 1.1;
+  margin-bottom: 10px;
+}
+
+/* Künye sıkışık olmalı — bir kayıt, bir liste değil. Satırlar
+   birbirinden uzaklaştığında künye olmaktan çıkıp form gibi duruyor. */
+.kunye-tablo td { padding: 2px 0; }
+.kunye-tablo .ad  { font-size: 12px; }
+.kunye-tablo .sag {
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 16px;
+  color: var(--metin);
+}
+/* Girilen bilgi ile ondan hesaplanan ayrılsın: üstte çizgi, altta renk.
+   Bakır olanlar uygulamanın çıkardığı, siyah olanlar senin yazdığın. */
+.kunye-tablo .sag.hesap { color: var(--vurgu); }
+.kunye-tablo tr.ayrilan td {
+  border-top: 1px solid var(--cetvel);
+  padding-top: 9px;
+}
+.kunye-tablo tr.ayrilan + tr td { padding-top: 2px; }
+
+/* Bağlantı gibi görünen ama bölüm içinde duran sade eylem. */
+.ac-yalin {
+  display: inline-block;
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--soluk);
+  cursor: pointer;
+  border-bottom: 1px solid var(--cetvel);
+  padding-bottom: 3px;
+  transition: color var(--sure-kisa) var(--egri),
+              border-color var(--sure-kisa) var(--egri);
+}
+.ac-yalin:hover { color: var(--metin); border-bottom-color: var(--soluk); }
+.ac-yalin.ekle { margin-top: 18px; }
+
+/* Üç gerçek sayı. Rozet, yüzde, seri (streak) yok — kaçırılan gün
+   suçluluk üretmesin diye bilerek. */
+.sayaclar {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.sayac { display: flex; flex-direction: column; gap: 5px; }
+/* Sayfadaki tek gerçek başarı bunlar — soluk gri kalmaları için
+   hiçbir sebep yok. */
+.sayac-deger {
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 25px;
+  line-height: 1;
+  color: var(--vurgu);
+}
+.sayac-ad {
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  color: var(--soluk);
+}
+
+a.yol-satir { text-decoration: none; color: inherit; }
+/* Ben'deki kişi satırları .yol-oge sarmalayıcısı olmadan kullanılıyor;
+   aralarındaki boşluğu kendileri vermeli, yoksa dört satır tek liste
+   gibi okunuyor. */
+.yol-satir.kisi { padding-top: 22px; }
+.yol-satir.kisi:first-of-type { padding-top: 0; }
+/* "uyum" bir eylem, bir durum bildirimi değil — bakır duruyor. */
+.kisi .yol-durum { gap: 7px; color: var(--vurgu); }
+.kisi .ok { border-color: var(--vurgu); }
+
+/* Takvim kapısı ve ayarlar aynı bölümde: ikisi de sayfanın en sessiz
+   işleri, her birine ayrı çerçeve harcamanın anlamı yok. */
+.kuyruk { display: flex; flex-direction: column; align-items: flex-start; }
+.kuyruk .ay-baglanti { margin-top: 0; }
+.kuyruk .ac { margin-top: 12px; }
+.kuyruk .detay { align-self: stretch; }
+
+.ayar-satir {
+  font-size: 13px;
+  color: var(--soluk);
+  padding: 7px 0;
+  cursor: pointer;
+}
+.ayar-satir:first-child { padding-top: 0; }
+
+/* --- Form -------------------------------------------------------------
+   Kutulu giriş alanı yok: kutu kart demek, kart jenerik demek.
+   Alan cetvel çizgisinin üstünde duruyor — kâğıt form mantığı.
+   Tek geri bildirim odaklanınca çizginin bakıra dönmesi.
+   ---------------------------------------------------------------------- */
+
+.form-ust { padding-top: 2px; }
+.form-ust .kunye-ad { margin-bottom: 8px; }
+.form { margin-top: var(--bosluk-xl); }
+
+.alan { display: block; margin-bottom: 26px; }
+
+.alan-etiket {
+  display: block;
+  font-size: 10.5px;
+  letter-spacing: 0.2em;
+  color: var(--soluk);
+  margin-bottom: 9px;
+}
+
+.alan-giris {
+  width: 100%;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--cetvel);
+  padding: 0 0 8px;
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 18px;
+  color: var(--metin);
+  transition: border-color var(--sure-kisa) var(--egri);
+}
+.alan-giris::placeholder { color: var(--soluk); opacity: 0.65; }
+.alan-giris:focus { outline: none; border-bottom-color: var(--vurgu); }
+
+/* Tarih ve saat tek kutuda değil: telefonda tarih seçici açmak akışı
+   kesiyor, kısa alanlar daha hızlı dolduruluyor. */
+.alan-bolmeli {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+.alan-bolmeli.dar { gap: 8px; }
+.alan-giris.kisa { width: 46px; text-align: center; }
+.alan-giris.orta { width: 68px; text-align: center; }
+.alan-ayrac { color: var(--soluk); font-size: 17px; }
+
+/* En hassas veriyi isteyen ekran bunu söylemeden geçemez. */
+.gizlilik {
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--soluk);
+  padding-top: var(--bosluk-m);
+  border-top: 1px solid var(--cetvel);
+}
+
+.form-eylem {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  margin-top: var(--bosluk-l);
+}
+.form-eylem .yesim-baglanti { margin-top: 0; }
+.ac-yalin.sade { margin-top: 0; border-bottom: 0; text-decoration: none; }
+
+/* --- Uyum (sinastri) --------------------------------------------------
+   Yüzde verilmiyor; kategori kategori anlatım.
+   İki mürekkep: zorlanılan başlıklar bakır, kolay olanlar siyah.
+   ---------------------------------------------------------------------- */
+
+.uyum-ust { padding-top: 2px; }
+.uyum-ust .kunye-ad { margin-bottom: 6px; }
+.uyum-ust .kunye-ad i { font-style: normal; color: var(--soluk); }
+.uyum-ozet { margin-top: 18px; }
+
+.ikili.uclu {
+  gap: 16px;
+  font-size: 14px;
+  justify-content: flex-start;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+.ikili.uclu i { margin-right: 4px; letter-spacing: 0.06em; }
+
+.kat-ust {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+/* Altı kategori üst üste gelince hepsi aynı metin bloğuna dönüşüyordu.
+   Rehber'de bunu renkli çubukla çözmüştük; burada da aynı çözüm.
+   Renk işareti taşıyor, yazı soluk kalıyor: 10.5px metni renklendirmek
+   kontrastı 4.5:1'in altına düşürürdü. */
+.kat-durum {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  letter-spacing: 0.06em;
+  color: var(--soluk);
+  white-space: nowrap;
+}
+.kat-durum::before {
+  content: '';
+  width: 9px;
+  height: 4px;
+  border-radius: 2px;
+  background: currentColor;
+}
+.kat-durum.kat-kolay::before   { background: var(--f-yol); }
+.kat-durum.kat-karisik::before { background: var(--f-para); }
+.kat-durum.kat-zor::before     { background: var(--f-beden); }
+
+/* Zorlanılan alanın başlığı bakır — ruzname'nin iki mürekkep mantığı,
+   Rehber'deki "bugün yapma" ile aynı kural. */
+p.soz.kat-zor { color: var(--vurgu); }
+
+/* --- Yeşim Hanım bölümü --- */
+
+.yesim .soz { max-width: 88%; }
+
+.yesim-baglanti {
+  display: inline-block;
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--vurgu);
+  border-bottom: 1px solid var(--vurgu);
+  padding-bottom: 3px;
+  cursor: pointer;
+}
+
+.imza {
+  font-family: 'EB Garamond', Georgia, serif;
+  font-style: italic;
+  font-size: 13px;
+  color: var(--soluk);
+  margin-left: 12px;
+}
+
+/* --- Alt menü: ikon yok, yalnızca kelime --- */
+
+.alt-menu {
+  position: sticky;
+  bottom: 0;
+  background: var(--zemin);
+  border-top: 1px solid var(--cetvel);
+  display: flex;
+  justify-content: space-between;
+  padding: 14px 0 18px;
+}
+.alt-menu a {
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  color: var(--soluk);
+  text-decoration: none;
+  transition: color var(--sure-kisa) var(--egri);
+}
+/* Etkin sekme yalnızca koyulukla ayrılıyordu; beş kelime aynı puntoda
+   olunca hangisinde olduğun bir bakışta seçilmiyordu. */
+.alt-menu a.etkin { color: var(--vurgu); }
+
+.yakinda {
+  height: 60vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 17px;
+  color: var(--soluk);
+}
+
+/* --- Sıralı giriş: 40 ms aralıkla belirme --- */
+
+.gir {
+  opacity: 0;
+  transform: translateY(10px);
+  animation: belir var(--sure-orta) var(--egri) forwards;
+  animation-delay: calc(var(--sira, 0) * 40ms);
+}
+@keyframes belir { to { opacity: 1; transform: none; } }
+
+/* --- Prototip denetimi: sağ kenarda, ekranın dışında --- */
+
+.denetim {
+  position: fixed;
+  right: 28px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: #6E6559;
+  text-align: right;
+}
+.denetim a { color: #6E6559; text-decoration: none; }
+.denetim a:hover { color: #B8AC99; }
+.denetim a.etkin { color: #D9CDBB; }
+.denetim .baslik { color: #443E36; letter-spacing: 0.16em; }
+.denetim .ayrac { height: 10px; }
+.denetim .bilgi { color: #443E36; line-height: 1.6; }
+
+@media (max-width: 700px) {
+  .telefon { --en: 100vw; height: 100vh; border-radius: 0; }
+  .denetim { display: none; }
+}
+
+/* Azaltılmış hareket.
+   GERÇEK UYGULAMADA bu, işletim sistemi ayarına bağlanacak
+   (prefers-reduced-motion). Prototipte ayara bağlı değil, çünkü prototipin
+   amacı hareketi değerlendirmek — sağdaki denetimden elle açılıp kapanıyor. */
+.hareket-kisitli * { animation: none !important; transition: none !important; }
+.hareket-kisitli .gir { opacity: 1; transform: none; }
